@@ -4,84 +4,61 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-# Твой токен бота (замени на свой)
+# Токен бота (замени на свой)
 TOKEN = "7588087338:AAGesdDnSAWFW4zHsioSEckDovg92-PXmeA"
 
 # Инициализация логирования
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Инициализация модели и токенизатора
-model_name = "microsoft/DialoGPT-medium"
+# Используем русскоязычную модель
+model_name = "sberbank-ai/rugpt3small_based_on_gpt2"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, use_safetensors=False)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
 # Обработка команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Отправляет приветственное сообщение при старте."""
-    await update.message.reply_text("Привет! Я чат-бот. Напиши мне что-нибудь!")
+    await update.message.reply_text("сосите хуй")
 
-# Обработка текстовых сообщений
+# Обработка сообщений
 async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обрабатывает текстовые сообщения от пользователя."""
     user_message = update.message.text.strip()
+    logger.debug(f"Received message: {user_message}")
 
-    if not user_message:  # Игнорируем пустые сообщения
-        return
-
-    logger.debug(f"Получено сообщение: {user_message}")
-
-    # Генерация ответа
-    bot_response = generate_response(user_message, context)
-
-    logger.debug(f"Ответ бота: {bot_response}")
-
-    await update.message.reply_text(bot_response)  # Отправляем ответ пользователю
-
-def generate_response(input_text, context):
-    """Генерирует ответ на основе истории чата."""
-    chat_history = context.user_data.get("chat_history", None)
-
-    logger.debug(f"Генерация ответа для: {input_text}")
-
-    # Токенизация входного текста
-    new_input_ids = tokenizer.encode(input_text + tokenizer.eos_token, return_tensors='pt')
-
-    # Объединение с историей (если есть)
-    bot_input_ids = new_input_ids if chat_history is None else torch.cat([chat_history, new_input_ids], dim=-1)
+    # Храним историю диалога в user_data
+    chat_history = context.user_data.get("chat_history", [])
+    chat_history.append(user_message)
+    if len(chat_history) > 5:  # Ограничиваем длину истории
+        chat_history.pop(0)
+    context.user_data["chat_history"] = chat_history
 
     # Генерация ответа
+    bot_response = generate_response(" ".join(chat_history))
+    logger.debug(f"Bot response: {bot_response}")
+
+    await update.message.reply_text(bot_response)
+
+def generate_response(input_text):
+    """Генерация развёрнутого ответа на русском языке."""
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+
     output = model.generate(
-        bot_input_ids,
-        max_length=1000,
-        pad_token_id=tokenizer.eos_token_id,
-        attention_mask=torch.ones_like(bot_input_ids)
+        input_ids,
+        max_length=200,  # Делаем ответы длиннее
+        temperature=0.9,  # Более креативные ответы
+        top_p=0.95,  # Используем семплинг
+        pad_token_id=tokenizer.eos_token_id
     )
 
-    # Обновляем историю чата
-    context.user_data["chat_history"] = output
-
-    # Декодируем ответ
-    bot_response = tokenizer.decode(output[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
-
-    logger.debug(f"Сгенерированный ответ: {bot_response}")
-
+    bot_response = tokenizer.decode(output[:, input_ids.shape[-1]:][0], skip_special_tokens=True)
     return bot_response
 
 # Основная функция для запуска бота
 def main() -> None:
-    """Запускает Telegram-бота."""
-    # Создание приложения для бота
     application = Application.builder().token(TOKEN).build()
-
-    # Обработчик команды /start
     application.add_handler(CommandHandler("start", start))
-
-    # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, respond))
-
-    # Запуск бота в режиме polling
     application.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
