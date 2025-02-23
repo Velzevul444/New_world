@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
 # Токен бота (замени на свой)
-TOKEN = "7588087338:AAGesdDnSAWFW4zHsioSEckDovg92-PXmeA"
+TOKEN = "твой токен"
 
 # Инициализация логирования
 logging.basicConfig(level=logging.DEBUG)
